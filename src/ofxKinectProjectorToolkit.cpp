@@ -5,8 +5,8 @@ ofxKinectProjectorToolkit::ofxKinectProjectorToolkit() {
     calibrated = false;
 }
 
-void ofxKinectProjectorToolkit::calibrate(vector<ofVec3f> pairsKinect,
-                                          vector<ofVec2f> pairsProjector) {
+void ofxKinectProjectorToolkit::calibrate(vector<glm::vec3> pairsKinect,
+                                          vector<glm::vec2> pairsProjector) {
     int nPairs = pairsKinect.size();
     A.set_size(nPairs*2, 11);
     y.set_size(nPairs*2, 1);
@@ -42,17 +42,49 @@ void ofxKinectProjectorToolkit::calibrate(vector<ofVec3f> pairsKinect,
     
     dlib::qr_decomposition<dlib::matrix<double, 0, 11> > qrd(A);
     x = qrd.solve(y);
+    updateGlmTransformMatrix();
     calibrated = true;
 }
 
-ofVec2f ofxKinectProjectorToolkit::getProjectedPoint(ofVec3f worldPoint) {
-    float a = x(0, 0)*worldPoint.x + x(1, 0)*worldPoint.y + x(2, 0)*worldPoint.z + x(3,0);
-    float b = x(4, 0)*worldPoint.x + x(5, 0)*worldPoint.y + x(6, 0)*worldPoint.z + x(7,0);
-    float c = x(8, 0)*worldPoint.x + x(9, 0)*worldPoint.y + x(10, 0)*worldPoint.z + 1;
-    ofVec2f projectedPoint(a/c, b/c);
+glm::vec2 ofxKinectProjectorToolkit::getProjectedPoint(const glm::vec3& worldPoint) {
+    double a = x(0, 0)*(double)worldPoint.x + x(1, 0)*(double)worldPoint.y + x(2, 0)*(double)worldPoint.z + x(3,0);
+    double b = x(4, 0)*(double)worldPoint.x + x(5, 0)*(double)worldPoint.y + x(6, 0)*(double)worldPoint.z + x(7,0);
+    double c = x(8, 0)*(double)worldPoint.x + x(9, 0)*(double)worldPoint.y + x(10, 0)*(double)worldPoint.z + 1;
+    glm::vec2 projectedPoint(a/c, b/c);
     return projectedPoint;
 }
-
+// Helper function to debug this the use of GLM matrix
+//glm::vec2 ofxKinectProjectorToolkit::getProjectedPointGLM(const glm::vec3& worldPoint){
+//    auto v = getGlmTransformMatrix() * glm::dvec4((double)worldPoint.x, (double)worldPoint.y, (double)worldPoint.z, 1.0);
+//    v.x /= v.w;
+//    v.y /= v.w;
+//    return glm::vec2(v.x, v.y);
+//}
+const glm::dmat4& ofxKinectProjectorToolkit::getGlmTransformMatrix(){
+    return transformMatrix;
+}
+void ofxKinectProjectorToolkit::updateGlmTransformMatrix(){
+    
+    transformMatrix[0][0] = x(0, 0);
+    transformMatrix[1][0] = x(1, 0);
+    transformMatrix[2][0] = x(2, 0);
+    transformMatrix[3][0] = x(3, 0);
+    
+    transformMatrix[0][1] = x(4, 0);
+    transformMatrix[1][1] = x(5, 0);
+    transformMatrix[2][1] = x(6, 0);
+    transformMatrix[3][1] = x(7, 0);
+    
+    transformMatrix[0][2] = 0;
+    transformMatrix[1][2] = 0;
+    transformMatrix[2][2] = 0;
+    transformMatrix[3][2] = 0;
+    
+    transformMatrix[0][3] = x(8, 0);
+    transformMatrix[1][3] = x(9, 0);
+    transformMatrix[2][3] = x(10, 0);
+    transformMatrix[3][3] = 1;
+}
 vector<double> ofxKinectProjectorToolkit::getCalibration()
 {
     vector<double> coefficients;
@@ -64,24 +96,27 @@ vector<double> ofxKinectProjectorToolkit::getCalibration()
 
 void ofxKinectProjectorToolkit::loadCalibration(string path){
     ofXml xml;
-    xml.load(path);    
-    xml.setTo("CALIBRATION");
-    for (int i=0; i<11; i++) {
-        x(i, 0) = xml.getValue<float>("COEFF"+ofToString(i));
+    if(xml.load(path)){
+        auto calib = xml.getChild("CALIBRATION");
+        if(calib){
+            for (int i=0; i<11; i++) {
+                x(i, 0) = calib.getChild("COEFF"+ofToString(i)).getFloatValue();
+            }
+            updateGlmTransformMatrix();
+            calibrated = true;
+        }
     }
-    calibrated = true;
+    if(!calibrated){
+        ofLogNotice("ofxKinectProjectorToolkit::loadCalibration") << "failed. invalid xml.";
+    }
 }
 
 void ofxKinectProjectorToolkit::saveCalibration(string path){
     ofXml xml;
-    xml.addChild("CALIBRATION");
-    xml.setTo("CALIBRATION");
+    auto calib = xml.appendChild("CALIBRATION");
     for (int i=0; i<11; i++) {
-        ofXml coeff;
-        coeff.addValue("COEFF"+ofToString(i), x(i, 0));
-        xml.addXml(coeff);
+        calib.appendChild("COEFF"+ofToString(i)).set<float>(x(i, 0));
     }
-    xml.setToParent();
     xml.save(path);
 }
 

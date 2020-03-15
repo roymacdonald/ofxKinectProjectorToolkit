@@ -10,11 +10,12 @@ class ofxKinectProjectorToolkit
 public:
     ofxKinectProjectorToolkit();
     
-    void calibrate(vector<ofVec3f> pairsKinect,
-                   vector<ofVec2f> pairsProjector);
+    void calibrate(vector<glm::vec3> pairsKinect,
+                   vector<glm::vec2> pairsProjector);
     
-    ofVec2f getProjectedPoint(ofVec3f worldPoint);
-    vector<ofVec2f> getProjectedContour(vector<ofVec3f> *worldPoints);
+    glm::vec2 getProjectedPoint(const glm::vec3& worldPoint);
+//    glm::vec2 getProjectedPointGLM(const glm::vec3& worldPoint);
+//    vector<glm::vec2> getProjectedContour(vector<glm::vec3> *worldPoints);
     
     vector<double> getCalibration();
 
@@ -23,11 +24,17 @@ public:
     
     bool isCalibrated() {return calibrated;}
     
+    const glm::dmat4& getGlmTransformMatrix();
+    
 private:
     
     dlib::matrix<double, 0, 11> A;
     dlib::matrix<double, 0, 1> y;
     dlib::matrix<double, 11, 1> x;
+
+    glm::dmat4 transformMatrix;
+    
+    void updateGlmTransformMatrix();
     
     bool calibrated;
 };
