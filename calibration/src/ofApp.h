@@ -21,33 +21,38 @@ public:
     void drawSecondWindow(ofEventArgs& args);
     
     void keyPressed(int key);
+    
     void mousePressed(int x, int y, int button);
-
+    void mouseDragged(int x, int y, int button);
+    void mouseReleased(int x, int y, int button);
+    
     void drawChessboard(int x, int y, int chessboardSize);
-    void drawTestingPoint(ofVec2f projectedPoint);
+    void drawTestingPoint(glm::vec2 projectedPoint);
     void addPointPair();
     
     ofxKinect                   kinect;
     ofxKinectProjectorToolkit   kpt;
 
     ofFbo                       fboChessboard;
-    ofxCvColorImage             rgbImage;
+    ofImage                     rgbImage;
     cv::Mat                     cvRgbImage;
 
-    vector<ofVec2f>             currentProjectorPoints;
+    vector<glm::vec2>             currentProjectorPoints;
     vector<cv::Point2f>         cvPoints;
-    vector<ofVec3f>             pairsKinect;
-    vector<ofVec2f>             pairsProjector;
+    vector<glm::vec3>             pairsKinect;
+    vector<glm::vec2>             pairsProjector;
 
     string                      resultMessage;
     ofColor                     resultMessageColor;
-    ofVec2f                     testPoint;
-
+    glm::vec2                   testPoint;
+    glm::vec2                   chessboardPosition;
+    ofImage                     cornersImage;
     int                         chessboardSize;
     int                         chessboardX;
     int                         chessboardY;
     bool                        testing;
     bool                        saved;
+    bool                        bFoundChessboard = false;
 };
 
 

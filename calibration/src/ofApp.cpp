@@ -10,8 +10,7 @@ void ofApp::setup(){
     kinect.init();
     kinect.open();
     
-    //rgbImage = new ofxCvColorImage();
-    rgbImage.allocate(kinect.width, kinect.height);
+    rgbImage.allocate(kinect.width, kinect.height, OF_IMAGE_COLOR);
     
     fboChessboard.allocate(PROJECTOR_RESOLUTION_X, PROJECTOR_RESOLUTION_Y, GL_RGBA);
 }
@@ -30,12 +29,12 @@ void ofApp::drawChessboard(int x, int y, int chessboardSize) {
             int x0 = ofMap(i, 0, chessboardX, 0, chessboardSize);
             int y0 = ofMap(j, 0, chessboardY, 0, chessboardSize);
             if (j>0 && i>0) {
-                currentProjectorPoints.push_back(ofVec2f(
+                currentProjectorPoints.push_back(glm::vec2(
                     ofMap(x+x0, 0, fboChessboard.getWidth(), 0, 1),
                     ofMap(y+y0, 0, fboChessboard.getHeight(), 0, 1)
                 ));
             }
-            if ((i+j)%2==0) ofRect(x0, y0, w, h);
+            if ((i+j)%2==0) ofDrawRectangle(x0, y0, w, h);
         }
     }
     ofSetColor(255);
@@ -43,12 +42,12 @@ void ofApp::drawChessboard(int x, int y, int chessboardSize) {
 }
 
 //--------------------------------------------------------------
-void ofApp::drawTestingPoint(ofVec2f projectedPoint) {
+void ofApp::drawTestingPoint(glm::vec2 projectedPoint) {
     float ptSize = ofMap(sin(ofGetFrameNum()*0.1), -1, 1, 3, 40);
     fboChessboard.begin();
     ofBackground(255);
     ofSetColor(0, 255, 0);
-    ofCircle(
+    ofDrawCircle(
              ofMap(projectedPoint.x, 0, 1, 0, fboChessboard.getWidth()),
              ofMap(projectedPoint.y, 0, 1, 0, fboChessboard.getHeight()),
              ptSize);
@@ -60,17 +59,18 @@ void ofApp::drawTestingPoint(ofVec2f projectedPoint) {
 void ofApp::addPointPair() {
     int nDepthPoints = 0;
     for (int i=0; i<cvPoints.size(); i++) {
-        ofVec3f worldPoint = kinect.getWorldCoordinateAt(cvPoints[i].x, cvPoints[i].y);
+        glm::vec3 worldPoint = kinect.getWorldCoordinateAt(cvPoints[i].x, cvPoints[i].y);
         if (worldPoint.z > 0)   nDepthPoints++;
     }
     if (nDepthPoints == (chessboardX-1)*(chessboardY-1)) {
         for (int i=0; i<cvPoints.size(); i++) {
-            ofVec3f worldPoint = kinect.getWorldCoordinateAt(cvPoints[i].x, cvPoints[i].y);
+            glm::vec3 worldPoint = kinect.getWorldCoordinateAt(cvPoints[i].x, cvPoints[i].y);
             pairsKinect.push_back(worldPoint);
             pairsProjector.push_back(currentProjectorPoints[i]);
         }
         resultMessage = "Added " + ofToString((chessboardX-1)*(chessboardY-1)) + " points pairs.";
         resultMessageColor = ofColor(0, 255, 0);
+        bFoundChessboard = false;
     } else {
         resultMessage = "Points not added because not all chessboard\npoints' depth known. Try re-positionining.";
         resultMessageColor = ofColor(255, 0, 0);
@@ -81,25 +81,26 @@ void ofApp::addPointPair() {
 void ofApp::update(){
     kinect.update();
     if (kinect.isFrameNew()) {
-        rgbImage.setFromPixels(kinect.getPixels(), kinect.width, kinect.height);
+        rgbImage.setFromPixels(kinect.getPixels());
         if (testing) {
-            ofVec2f t = ofVec2f(min(kinect.getWidth()-1,testPoint.x), min(kinect.getHeight()-1,testPoint.y));
-            ofVec3f worldPoint = kinect.getWorldCoordinateAt(t.x, t.y);
-            ofVec2f projectedPoint = kpt.getProjectedPoint(worldPoint);
+            glm::vec2 t = glm::vec2(min(kinect.getWidth()-1,testPoint.x), min(kinect.getHeight()-1,testPoint.y));
+            glm::vec3 worldPoint = kinect.getWorldCoordinateAt(t.x, t.y);
+            glm::vec2 projectedPoint = kpt.getProjectedPoint(worldPoint);
             drawTestingPoint(projectedPoint);
         }
         else {
-            drawChessboard(ofGetMouseX(), ofGetMouseY(), chessboardSize);
+            drawChessboard(chessboardPosition.x,chessboardPosition.y, chessboardSize);
             cvRgbImage = ofxCv::toCv(rgbImage.getPixels());
             cv::Size patternSize = cv::Size(chessboardX-1, chessboardY-1);
             int chessFlags = cv::CALIB_CB_ADAPTIVE_THRESH + cv::CALIB_CB_FAST_CHECK;
-            bool foundChessboard = findChessboardCorners(cvRgbImage, patternSize, cvPoints, chessFlags);
-            if(foundChessboard) {
+            bFoundChessboard = findChessboardCorners(cvRgbImage, patternSize, cvPoints, chessFlags);
+            if(bFoundChessboard) {
                 cv::Mat gray;
                 cvtColor(cvRgbImage, gray, CV_RGB2GRAY);
                 cornerSubPix(gray, cvPoints, cv::Size(11, 11), cv::Size(-1, -1),
                              cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-                drawChessboardCorners(cvRgbImage, patternSize, cv::Mat(cvPoints), foundChessboard);
+                drawChessboardCorners(cvRgbImage, patternSize, cv::Mat(cvPoints), bFoundChessboard);
+                ofxCv::toOf(cvRgbImage, cornersImage);
             }
         }
     }
@@ -108,8 +109,11 @@ void ofApp::update(){
 //--------------------------------------------------------------
 void ofApp::draw(){
     rgbImage.draw(0, 0);
-    kinect.drawDepth(10, 490, 320, 240);
+    kinect.drawDepth(10, rgbImage.getHeight(), 320, 240);
     
+    if(cornersImage.isAllocated()){
+        cornersImage.draw(0, rgbImage.getWidth() + 10);
+    }
     ofSetColor(0);
     if (testing) {
         ofDrawBitmapString("Click on the image to test a point in the RGB image.", 340, 510);
@@ -120,7 +124,7 @@ void ofApp::draw(){
         }
         ofSetColor(255, 0, 0);
         float ptSize = ofMap(cos(ofGetFrameNum()*0.1), -1, 1, 3, 40);
-        ofCircle(testPoint.x, testPoint.y, ptSize);
+        ofDrawCircle(testPoint.x, testPoint.y, ptSize);
     } else {
         ofDrawBitmapString("Position the chessboard using the mouse.", 340, 510);
         ofDrawBitmapString("Adjust the size of the chessboard using the 'q' and 'w' keys.", 340, 530);
@@ -130,12 +134,24 @@ void ofApp::draw(){
         ofDrawBitmapString(resultMessage, 340, 610);
         ofSetColor(0);
         ofDrawBitmapString(ofToString(pairsKinect.size())+" point pairs collected.", 340, 630);
+        ofDrawBitmapString("Found Chessboard : " + (string)(bFoundChessboard?"TRUE":"FALSE"), 340, 650);
+        if(bFoundChessboard){
+        ofPushStyle();
+        ofSetColor(ofColor::red);
+        ofNoFill();
+        ofSetLineWidth(2);
+        for(auto & p: cvPoints){
+            ofDrawCircle(p.x, p.y, 5);
+        }
+        ofPopStyle();
+        }
     }
     ofSetColor(255);
 }
 
 void ofApp::drawSecondWindow(ofEventArgs &args){
     ofSetColor(ofColor::white);
+
     fboChessboard.draw(0, 0);
 }
 
@@ -150,18 +166,43 @@ void ofApp::keyPressed(int key){
     } else if (key=='c') {
         kpt.calibrate(pairsKinect, pairsProjector);
         testing = true;
+    } else if (key=='t') {
+        testing ^= true;
     } else if (key=='s') {
         kpt.saveCalibration("calibration.xml");
         saved = true;
     } else if (key=='l') {
         kpt.loadCalibration("calibration.xml");
         testing = true;
+    } else if (key==OF_KEY_LEFT) {
+        chessboardPosition.x -= 10;
+    } else if (key==OF_KEY_RIGHT) {
+        chessboardPosition.x += 10;
+    } else if (key==OF_KEY_UP) {
+        chessboardPosition.y -= 10;
+    } else if (key==OF_KEY_DOWN) {
+        chessboardPosition.y += 10;
     }
 }
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
     if (testing) {
-        testPoint.set(min(x, kinect.width-1), min(y, kinect.height-1));
+        testPoint.x = min(x, kinect.width-1);
+        testPoint.y = min(y, kinect.height-1);
+    }
+}
+//--------------------------------------------------------------
+void ofApp::mouseDragged(int x, int y, int button){
+    if (!testing) {
+        chessboardPosition.x = x;
+        chessboardPosition.y = y;
+    }
+}
+//--------------------------------------------------------------
+void ofApp::mouseReleased(int x, int y, int button){
+    if (!testing) {
+        chessboardPosition.x = x;
+        chessboardPosition.y = y;
     }
 }
