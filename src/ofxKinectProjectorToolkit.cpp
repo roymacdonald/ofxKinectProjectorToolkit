@@ -53,13 +53,27 @@ glm::vec2 ofxKinectProjectorToolkit::getProjectedPoint(const glm::vec3& worldPoi
     glm::vec2 projectedPoint(a/c, b/c);
     return projectedPoint;
 }
-// Helper function to debug this the use of GLM matrix
-//glm::vec2 ofxKinectProjectorToolkit::getProjectedPointGLM(const glm::vec3& worldPoint){
-//    auto v = getGlmTransformMatrix() * glm::dvec4((double)worldPoint.x, (double)worldPoint.y, (double)worldPoint.z, 1.0);
-//    v.x /= v.w;
-//    v.y /= v.w;
-//    return glm::vec2(v.x, v.y);
-//}
+
+glm::vec2 ofxKinectProjectorToolkit::getProjectedPointGLM(const glm::vec3& worldPoint){
+    auto v = getGlmTransformMatrix() * glm::dvec4((double)worldPoint.x, (double)worldPoint.y, (double)worldPoint.z, 1.0);
+    v.x /= v.w;
+    v.y /= v.w;
+    return glm::vec2(v.x, v.y);
+}
+glm::vec3 ofxKinectProjectorToolkit::getUnprojectedPoint(const glm::vec3& projectedPoint)
+{
+	auto p = glm::dvec4((double)projectedPoint.x, (double)projectedPoint.y, (double)projectedPoint.z, 1.0);
+	auto v = glm::inverse(getGlmTransformMatrix()) * p;
+
+	v.x /= v.w;
+    v.y /= v.w;
+	v.z /= v.w;
+	
+	
+	return glm::vec3(v);
+}
+
+
 const glm::dmat4& ofxKinectProjectorToolkit::getGlmTransformMatrix(){
     return transformMatrix;
 }
@@ -77,7 +91,7 @@ void ofxKinectProjectorToolkit::updateGlmTransformMatrix(){
     
     transformMatrix[0][2] = 0;
     transformMatrix[1][2] = 0;
-    transformMatrix[2][2] = 0;
+    transformMatrix[2][2] = 1;
     transformMatrix[3][2] = 0;
     
     transformMatrix[0][3] = x(8, 0);
